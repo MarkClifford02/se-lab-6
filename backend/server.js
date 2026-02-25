@@ -8,7 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Database Connection Pool (Solution para sa Connection Lost errors)
+// 1. Database Connection Pool (Solution for Connection Lost errors)
 const db = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -20,19 +20,34 @@ const db = mysql.createPool({
     queueLimit: 0
 });
 
-// Test the pool connection
+// AUTO-TABLE CREATOR: Ito ang gagawa ng table mo sa Railway pag-startup
 db.getConnection((err, connection) => {
     if (err) {
         console.error('❌ Database connection failed:', err.message);
     } else {
         console.log('✅ Connected to MySQL Database Pool!');
-        connection.release();
+        
+        // SQL command para gawin ang table kung wala pa (Part 3 & Lab 3 Schema)
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS moods (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                message TEXT NOT NULL,
+                ai_response TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `;
+        
+        connection.query(createTableQuery, (err) => {
+            if (err) console.error('❌ Error creating table:', err.message);
+            else console.log('🚀 Table "moods" is ready/verified in Railway!');
+            connection.release(); // Ibalik ang connection sa pool
+        });
     }
 });
 
 const GROQ_API_KEY = "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";
 
-// 2. Mood Analysis & Save Route
+// 2. Mood Analysis & Save Route (Lab 3 AI Integration)
 app.post('/api/mood', async (req, res) => {
     const { message } = req.body;
     let aiFeedback = "";
@@ -56,7 +71,7 @@ app.post('/api/mood', async (req, res) => {
         console.log("🤖 AI Response generated via Groq");
 
     } catch (error) {
-        // --- STEP B: Offline Fallback ---
+        // --- STEP B: Offline Fallback (Required by Lab 3) ---
         console.warn("⚠️ AI API failed, using Offline Fallback.");
         const fallbacks = [
             "Take a deep breath. You are doing better than you think.",
@@ -81,7 +96,7 @@ app.post('/api/mood', async (req, res) => {
     });
 });
 
-// 3. History Route
+// 3. History Route: Para makuha ang data para sa Vue frontend
 app.get('/api/history', (req, res) => {
     db.query("SELECT * FROM moods ORDER BY id DESC", (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
